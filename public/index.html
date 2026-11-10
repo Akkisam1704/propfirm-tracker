@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Prop Firm Spend Tracker</title>
+<script>(function(){var t=null;try{t=localStorage.getItem("propfirm-theme")}catch(e){}if(t!=="dark"&&t!=="light")t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})();</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 :root{--bg:#eef1f4;--panel:#fff;--ink:#14202b;--mute:#5d6b78;--line:#d8dee4;--spend:#b3261e;--gain:#1b7a50;--accent:#16465f;--accent-ink:#fff;
@@ -11,6 +12,8 @@ box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:en
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e161d;--panel:#16212b;--ink:#e6edf3;--mute:#8fa1b0;--line:#26343f;--spend:#ff7b72;--gain:#4cc38a;--accent:#7cc4e8;--accent-ink:#0e161d}}
 :root[data-theme="dark"]{--bg:#0e161d;--panel:#16212b;--ink:#e6edf3;--mute:#8fa1b0;--line:#26343f;--spend:#ff7b72;--gain:#4cc38a;--accent:#7cc4e8;--accent-ink:#0e161d}
 *{box-sizing:border-box}
+:root[data-theme="dark"]{color-scheme:dark}:root[data-theme="light"]{color-scheme:light}
+.themebtn{margin-top:22px}.top .ctl{display:flex;gap:12px;align-items:flex-start}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,sans-serif}
 main{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
@@ -53,7 +56,7 @@ td.r,th.r{text-align:right}
       <h1>Prop firm spend tracker</h1>
       <p class="sub">Upload a CSV of your transactions and the totals build themselves.</p>
     </div>
-    <div><label for="cur" style="margin:0 0 3px">Currency symbol</label><select id="cur"><option>$</option><option>₹</option><option>€</option><option>£</option></select></div>
+    <div class="ctl"><div><label for="cur" style="margin:0 0 3px">Currency symbol</label><select id="cur"><option>$</option><option>₹</option><option>€</option><option>£</option></select></div><button id="theme" class="themebtn" type="button" aria-label="Toggle dark mode"></button></div>
   </div>
 
   <section class="hero" aria-live="polite">
@@ -201,6 +204,9 @@ $("clear").onclick=function(){
 $("log").onclick=function(ev){var b=ev.target.closest(".del");if(!b)return;S.entries.splice(+b.dataset.i,1);save();render()};
 $("filter").onchange=render;
 $("cur").onchange=function(){S.cur=$("cur").value;save();render()};
+function setTheme(t){document.documentElement.setAttribute("data-theme",t);$("theme").textContent=t==="dark"?"\u2600 Light mode":"\u263E Dark mode";try{localStorage.setItem("propfirm-theme",t)}catch(e){}}
+$("theme").onclick=function(){setTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark")};
+setTheme(document.documentElement.getAttribute("data-theme"));
 render();
 fetch("/api/data").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){if(d&&d.entries){S=d;render()}}).catch(function(){$("msg").textContent="Could not load saved data from Google Drive. Check the server settings on Render."});
 })();
