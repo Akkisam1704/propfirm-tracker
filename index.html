@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prop Firm Spend Tracker</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{--bg:#eef1f4;--panel:#fff;--ink:#14202b;--mute:#5d6b78;--line:#d8dee4;--spend:#b3261e;--gain:#1b7a50;--accent:#16465f;--accent-ink:#fff;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e161d;--panel:#16212b;--ink:#e6edf3;--mute:#8fa1b0;--line:#26343f;--spend:#ff7b72;--gain:#4cc38a;--accent:#7cc4e8;--accent-ink:#0e161d}}
+:root[data-theme="dark"]{--bg:#0e161d;--panel:#16212b;--ink:#e6edf3;--mute:#8fa1b0;--line:#26343f;--spend:#ff7b72;--gain:#4cc38a;--accent:#7cc4e8;--accent-ink:#0e161d}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Instrument Sans",system-ui,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:16px;margin:0 0 12px}
+.sub{color:var(--mute);margin:0 0 20px}
+.num{font-variant-numeric:tabular-nums}
+.hero{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:16px;grid-template-columns:1.4fr 1fr 1fr 1fr}
+.hero .big{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.lbl{color:var(--mute);font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:16px}
+.grid{display:grid;gap:16px;grid-template-columns:320px 1fr;align-items:start}
+.grid .panel{margin-top:16px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 3px}
+input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600;width:100%;margin-top:14px;padding:10px}
+.drop{display:block;border:1.5px dashed var(--line);border-radius:8px;padding:22px 12px;text-align:center;color:var(--mute);cursor:pointer}.drop:hover,.drop.on{border-color:var(--accent);color:var(--ink)}.drop:focus-within{outline:2px solid var(--accent)}.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:500;color:var(--mute);font-size:13px}
+td.r,th.r{text-align:right}
+.spend{color:var(--spend)}.gain{color:var(--gain)}
+.bar{height:6px;background:var(--line);border-radius:3px;min-width:80px}
+.bar i{display:block;height:100%;background:var(--spend);border-radius:3px}
+.del{padding:2px 8px;color:var(--mute)}
+.empty{color:var(--mute);padding:16px 0}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.top select{width:auto}
+@media(max-width:800px){.hero{grid-template-columns:1fr 1fr}.hero>:first-child{grid-column:1/-1}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>Prop firm spend tracker</h1>
+      <p class="sub">Upload a CSV of your transactions and the totals build themselves.</p>
+    </div>
+    <div><label for="cur" style="margin:0 0 3px">Currency symbol</label><select id="cur"><option>$</option><option>₹</option><option>€</option><option>£</option></select></div>
+  </div>
+
+  <section class="hero" aria-live="polite">
+    <div><div class="lbl">Net result (payouts minus spend)</div><div class="big num" id="net">0</div></div>
+    <div><div class="lbl">Total spent</div><div class="big num spend" style="font-size:24px" id="spent">0</div></div>
+    <div><div class="lbl">Payouts received</div><div class="big num gain" style="font-size:24px" id="paid">0</div></div>
+    <div><div class="lbl">Payout vs spend</div><div class="big num" style="font-size:24px" id="ratio">0%</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>Import CSV</h2>
+      <label class="drop" id="drop" for="file">Choose a CSV file or drop it here<input id="file" type="file" accept=".csv,.txt,text/csv"></label>
+      <div id="msg" class="lbl" style="margin-top:8px" role="status">Works with bank, card or prop firm exports. You need a date, a firm or website name and an amount.</div>
+      <div id="mapbox" hidden>
+        <div class="row2"><div><label for="mDate">Date column</label><select id="mDate"></select></div><div><label for="mFirm">Firm or website column</label><select id="mFirm"></select></div></div>
+        <div class="row2"><div><label for="mAmt">Amount column</label><select id="mAmt"></select></div><div><label for="mSign">Amounts</label><select id="mSign"><option value="neg">Negative = spending</option><option value="pos">Positive = spending</option></select></div></div>
+        <div class="row2"><div><label for="mType">Type column (optional)</label><select id="mType"></select></div><div><label for="mNote">Note column (optional)</label><select id="mNote"></select></div></div>
+        <label for="mMode">When importing</label>
+        <select id="mMode"><option value="add">Add to existing entries</option><option value="replace">Replace all entries</option></select>
+        <button class="primary" id="import" type="button">Import entries</button>
+      </div>
+      <button id="clear" type="button" style="margin-top:14px;width:100%">Clear all data</button>
+    </section>
+
+    <div>
+      <section class="panel">
+        <h2>By firm</h2>
+        <div class="wrap"><table>
+          <thead><tr><th>Firm</th><th class="r">Spent</th><th class="r">Payouts</th><th class="r">Net</th><th>Share of spend</th></tr></thead>
+          <tbody id="byfirm"></tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <div class="top" style="align-items:center"><h2>All entries</h2>
+          <select id="filter" aria-label="Filter by firm"><option value="">All firms</option></select></div>
+        <div class="wrap"><table>
+          <thead><tr><th>Date</th><th>Firm</th><th>Type</th><th>Account</th><th class="r">Amount</th><th>Note</th><th></th></tr></thead>
+          <tbody id="log"></tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+var KEY="propfirm-tracker-v1",S={entries:[],cur:"$"};
+function save(){fetch("/api/data",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)}).then(function(r){if(!r.ok)throw 0}).catch(function(){var m=document.getElementById("msg");if(m)m.textContent="Could not save to Google Drive. Check the server settings on Render."})}
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function money(n){var sign=n<0?"-":"";return sign+S.cur+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}
+function isPay(e){return e.type==="Payout"}
+function render(){
+  $("cur").value=S.cur;
+  var spent=0,paid=0,firms={};
+  S.entries.forEach(function(e){
+    var f=firms[e.firm]||(firms[e.firm]={s:0,p:0});
+    if(isPay(e)){paid+=e.amt;f.p+=e.amt}else{spent+=e.amt;f.s+=e.amt}
+  });
+  var net=paid-spent;
+  $("net").textContent=money(net);$("net").className="big num "+(net<0?"spend":"gain");
+  $("spent").textContent=money(spent);$("paid").textContent=money(paid);
+  $("ratio").textContent=spent?Math.round(paid/spent*100)+"%":"0%";
+  var names=Object.keys(firms).sort(function(a,b){return firms[b].s-firms[a].s});
+  
+  var cur=$("filter").value;
+  $("filter").innerHTML='<option value="">All firms</option>'+names.map(function(n){return'<option'+(n===cur?' selected':'')+' value="'+esc(n)+'">'+esc(n)+'</option>'}).join("");
+  $("byfirm").innerHTML=names.length?names.map(function(n){var f=firms[n],d=f.p-f.s,w=spent?f.s/spent*100:0;
+    return'<tr><td>'+esc(n)+'</td><td class="r num">'+money(f.s)+'</td><td class="r num">'+money(f.p)+'</td><td class="r num '+(d<0?"spend":"gain")+'">'+money(d)+'</td><td><div class="bar"><i style="width:'+w.toFixed(1)+'%"></i></div></td></tr>'}).join("")
+    :'<tr><td colspan="5" class="empty">No firms yet. Add your first entry to see totals here.</td></tr>';
+  var flt=$("filter").value;
+  var list=S.entries.map(function(e,i){return{e:e,i:i}}).filter(function(x){return!flt||x.e.firm===flt}).sort(function(a,b){return(b.e.date||"").localeCompare(a.e.date||"")});
+  $("log").innerHTML=list.length?list.map(function(x){var e=x.e;
+    return'<tr><td class="num">'+esc(e.date||"")+'</td><td>'+esc(e.firm)+'</td><td>'+esc(e.type)+'</td><td>'+esc(e.acct||"")+'</td><td class="r num '+(isPay(e)?"gain":"spend")+'">'+(isPay(e)?"+":"-")+money(e.amt).replace("-","")+'</td><td>'+esc(e.note||"")+'</td><td><button class="del" data-i="'+x.i+'" aria-label="Delete entry">Delete</button></td></tr>'}).join("")
+    :'<tr><td colspan="7" class="empty">Nothing logged yet.</td></tr>';
+}
+var rows=[],hdr=[];
+function p2(s){return("0"+s).slice(-2)}
+function parseCSV(t){
+  t=t.replace(/^\uFEFF/,"");
+  var first=t.split(/\r?\n/)[0]||"";
+  var d=[",",";","\t"].sort(function(a,b){return first.split(b).length-first.split(a).length})[0];
+  var out=[],r=[],f="",q=false;
+  for(var i=0;i<t.length;i++){var c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;
+    else if(c===d){r.push(f);f=""}
+    else if(c==="\n"||c==="\r"){if(c==="\r"&&t[i+1]==="\n")i++;r.push(f);f="";if(r.length>1||r[0]!=="")out.push(r);r=[]}
+    else f+=c}
+  if(f!==""||r.length){r.push(f);out.push(r)}
+  return out}
+function num(s){s=String(s||"").trim();var neg=/^\(.*\)$/.test(s)||/^[^\d]*-/.test(s);var v=parseFloat(s.replace(/[^0-9.]/g,""));return isNaN(v)?null:(neg?-v:v)}
+function dt(s){s=String(s||"").trim();var m;
+  if(m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))return m[1]+"-"+p2(m[2])+"-"+p2(m[3]);
+  if(m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/)){var a=+m[1],b=+m[2],y=m[3].length==2?"20"+m[3]:m[3];if(b>12){var t=a;a=b;b=t}return y+"-"+p2(b)+"-"+p2(a)}
+  var x=new Date(s);return isNaN(x)?"":x.toISOString().slice(0,10)}
+function guess(re){for(var i=0;i<hdr.length;i++)if(re.test(hdr[i]))return i;return -1}
+function fill(id,i,opt){var s=$(id);s.innerHTML=(opt?'<option value="-1">None</option>':'')+hdr.map(function(h,k){return'<option value="'+k+'">'+esc(h||"Column "+(k+1))+'</option>'}).join("");s.value=String(i<0?(opt?-1:0):i)}
+function load(file){
+  var r=new FileReader();
+  r.onload=function(){
+    var all=parseCSV(String(r.result));
+    if(all.length<2){$("msg").textContent="That file has no data rows. Check it has a header row and at least one transaction.";return}
+    hdr=all[0].map(function(h){return h.trim()});rows=all.slice(1);
+    fill("mDate",guess(/date|time|posted/i));
+    fill("mFirm",guess(/firm|merchant|website|site|payee|vendor|description|name|detail/i));
+    fill("mAmt",guess(/amount|debit|value|price|cost|total/i));
+    fill("mType",guess(/^type$|category|kind/i),1);
+    fill("mNote",guess(/note|memo|reference|remark/i),1);
+    var ai=+$("mAmt").value,neg=rows.some(function(x){var n=num(x[ai]);return n!==null&&n<0});
+    $("mSign").value=neg?"neg":"pos";
+    $("mapbox").hidden=false;
+    $("msg").textContent=rows.length+" rows found. Check the columns below, then import.";
+  };
+  r.readAsText(file)}
+$("file").onchange=function(){if(this.files[0])load(this.files[0]);this.value=""};
+var dz=$("drop");
+["dragenter","dragover"].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.add("on")})});
+["dragleave","drop"].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.remove("on")})});
+dz.addEventListener("drop",function(e){var f=e.dataTransfer&&e.dataTransfer.files[0];if(f)load(f)});
+$("import").onclick=function(){
+  var iD=+$("mDate").value,iF=+$("mFirm").value,iA=+$("mAmt").value,iT=+$("mType").value,iN=+$("mNote").value,negSpend=$("mSign").value==="neg";
+  if($("mMode").value==="replace")S.entries=[];
+  var seen={},skipped=0,added=0;
+  function key(e){return[e.date,e.firm.toLowerCase(),e.type,e.amt,e.note].join("|")}
+  S.entries.forEach(function(e){seen[key(e)]=1});
+  rows.forEach(function(x){
+    var n=num(x[iA]),firm=(x[iF]||"").trim();
+    if(n===null||n===0||!firm){skipped++;return}
+    var pay,type;
+    if(iT>=0&&x[iT]){type=x[iT].trim();pay=/payout|withdraw|reward|profit|refund|credit/i.test(type)}
+    else{pay=negSpend?n>0:n<0;type="Spend"}
+    if(pay)type="Payout";
+    var e={firm:firm,type:type,amt:Math.abs(n),acct:"",date:dt(x[iD]),note:iN>=0?(x[iN]||"").trim():""};
+    if(seen[key(e)]){skipped++;return}
+    seen[key(e)]=1;S.entries.push(e);added++});
+  save();render();$("mapbox").hidden=true;
+  $("msg").textContent="Imported "+added+" entries"+(skipped?", skipped "+skipped+" duplicate or unreadable rows":"")+". Upload another file any time.";
+};
+var armed=false;
+$("clear").onclick=function(){
+  if(!armed){armed=true;this.textContent="Click again to delete everything";var b=this;setTimeout(function(){armed=false;b.textContent="Clear all data"},4000);return}
+  armed=false;this.textContent="Clear all data";S.entries=[];save();render();$("msg").textContent="All entries cleared.";
+};
+$("log").onclick=function(ev){var b=ev.target.closest(".del");if(!b)return;S.entries.splice(+b.dataset.i,1);save();render()};
+$("filter").onchange=render;
+$("cur").onchange=function(){S.cur=$("cur").value;save();render()};
+render();
+fetch("/api/data").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(d){if(d&&d.entries){S=d;render()}}).catch(function(){$("msg").textContent="Could not load saved data from Google Drive. Check the server settings on Render."});
+})();
+</script>
+</body>
+</html>
