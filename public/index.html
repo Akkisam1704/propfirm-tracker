@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Prop Firm Spend Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>(function(){var t=null;try{t=localStorage.getItem("propfirm-theme")}catch(e){}if(t!=="dark"&&t!=="light")t=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.setAttribute("data-theme",t)})();</script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
@@ -68,13 +69,15 @@ td.r,th.r{text-align:right}
 
   <div class="grid">
     <section class="panel">
-      <h2>Import CSV</h2>
-      <label class="drop" id="drop" for="file">Choose a CSV file or drop it here<input id="file" type="file" accept=".csv,.txt,text/csv"></label>
-      <div id="msg" class="lbl" style="margin-top:8px" role="status">Works with bank, card or prop firm exports. You need a date, a firm or website name and an amount.</div>
+      <h2>Import file</h2>
+      <label class="drop" id="drop" for="file">Choose an Excel or CSV file, or drop it here<input id="file" type="file" accept=".xlsx,.xls,.csv,.txt,text/csv"></label>
+      <div id="msg" class="lbl" style="margin-top:8px" role="status">Works with Excel (.xlsx) and CSV exports. Failed and cancelled orders are ignored automatically.</div>
       <div id="mapbox" hidden>
-        <div class="row2"><div><label for="mDate">Date column</label><select id="mDate"></select></div><div><label for="mFirm">Firm or website column</label><select id="mFirm"></select></div></div>
+        <div class="row2"><div><label for="mDate">Date column</label><select id="mDate"></select></div><div><label for="mFirm">Firm column (optional)</label><select id="mFirm"></select></div></div>
         <div class="row2"><div><label for="mAmt">Amount column</label><select id="mAmt"></select></div><div><label for="mSign">Amounts</label><select id="mSign"><option value="neg">Negative = spending</option><option value="pos">Positive = spending</option></select></div></div>
         <div class="row2"><div><label for="mType">Type column (optional)</label><select id="mType"></select></div><div><label for="mNote">Note column (optional)</label><select id="mNote"></select></div></div>
+        <div class="row2"><div><label for="mStatus">Status column (optional)</label><select id="mStatus"></select></div><div><label for="mId">Order ID column (optional)</label><select id="mId"></select></div></div>
+        <label for="fixedFirm">Firm name</label><input id="fixedFirm" placeholder="Used for every row when there is no firm column">
         <label for="mMode">When importing</label>
         <select id="mMode"><option value="add">Add to existing entries</option><option value="replace">Replace all entries</option></select>
         <button class="primary" id="import" type="button">Import entries</button>
@@ -155,46 +158,65 @@ function dt(s){s=String(s||"").trim();var m;
   var x=new Date(s);return isNaN(x)?"":x.toISOString().slice(0,10)}
 function guess(re){for(var i=0;i<hdr.length;i++)if(re.test(hdr[i]))return i;return -1}
 function fill(id,i,opt){var s=$(id);s.innerHTML=(opt?'<option value="-1">None</option>':'')+hdr.map(function(h,k){return'<option value="'+k+'">'+esc(h||"Column "+(k+1))+'</option>'}).join("");s.value=String(i<0?(opt?-1:0):i)}
+function iso(d){var x=new Date(d.getTime()+432e5);return x.getFullYear()+"-"+p2(x.getMonth()+1)+"-"+p2(x.getDate())}
+function ingest(all,name){
+  all=all.filter(function(r){return r.some(function(c){return String(c).trim()!==""})});
+  if(all.length<2){$("msg").textContent="That file has no data rows. Check it has a header row and at least one transaction.";return}
+  hdr=all[0].map(function(h){return String(h).trim()});rows=all.slice(1);
+  var fi=guess(/firm|merchant|website|site|payee|vendor/i);
+  if(fi<0&&guess(/product/i)<0)fi=guess(/description|name|detail/i);
+  fill("mDate",guess(/date|time|posted/i));
+  fill("mFirm",fi,1);
+  fill("mAmt",guess(/amount|debit|value|price|cost|total/i));
+  fill("mType",guess(/^type$|category|kind/i),1);
+  fill("mNote",guess(/note|memo|remark|product|description|detail/i),1);
+  fill("mStatus",guess(/status|state/i),1);
+  fill("mId",guess(/order|transaction|^id$|txn|reference/i),1);
+  $("fixedFirm").value=name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").replace(/\b(transactions?|orders?|export|history|statement|report|data)\b/ig,"").replace(/\s+/g," ").trim();
+  var ai=+$("mAmt").value,neg=rows.some(function(x){var n=num(x[ai]);return n!==null&&n<0});
+  $("mSign").value=neg?"neg":"pos";
+  $("mapbox").hidden=false;
+  $("msg").textContent=rows.length+" rows found. Check the columns below, then import.";
+}
 function load(file){
-  var r=new FileReader();
-  r.onload=function(){
-    var all=parseCSV(String(r.result));
-    if(all.length<2){$("msg").textContent="That file has no data rows. Check it has a header row and at least one transaction.";return}
-    hdr=all[0].map(function(h){return h.trim()});rows=all.slice(1);
-    fill("mDate",guess(/date|time|posted/i));
-    fill("mFirm",guess(/firm|merchant|website|site|payee|vendor|description|name|detail/i));
-    fill("mAmt",guess(/amount|debit|value|price|cost|total/i));
-    fill("mType",guess(/^type$|category|kind/i),1);
-    fill("mNote",guess(/note|memo|reference|remark/i),1);
-    var ai=+$("mAmt").value,neg=rows.some(function(x){var n=num(x[ai]);return n!==null&&n<0});
-    $("mSign").value=neg?"neg":"pos";
-    $("mapbox").hidden=false;
-    $("msg").textContent=rows.length+" rows found. Check the columns below, then import.";
-  };
-  r.readAsText(file)}
+  var ext=(file.name.split(".").pop()||"").toLowerCase(),r=new FileReader();
+  if(ext==="xlsx"||ext==="xls"){
+    if(!window.XLSX){$("msg").textContent="The Excel reader did not load. Check your internet connection and refresh the page.";return}
+    r.onload=function(){try{
+      var wb=XLSX.read(r.result,{type:"array",cellDates:true}),best=null;
+      wb.SheetNames.forEach(function(n){var a=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,raw:true,defval:""}).map(function(row){return row.map(function(c){return c instanceof Date?iso(c):String(c)})});if(!best||a.length>best.length)best=a});
+      ingest(best||[],file.name)}catch(e){$("msg").textContent="Could not read that Excel file."}};
+    r.readAsArrayBuffer(file)
+  }else{r.onload=function(){ingest(parseCSV(String(r.result)),file.name)};r.readAsText(file)}
+}
 $("file").onchange=function(){if(this.files[0])load(this.files[0]);this.value=""};
 var dz=$("drop");
 ["dragenter","dragover"].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.add("on")})});
 ["dragleave","drop"].forEach(function(n){dz.addEventListener(n,function(e){e.preventDefault();dz.classList.remove("on")})});
 dz.addEventListener("drop",function(e){var f=e.dataTransfer&&e.dataTransfer.files[0];if(f)load(f)});
 $("import").onclick=function(){
-  var iD=+$("mDate").value,iF=+$("mFirm").value,iA=+$("mAmt").value,iT=+$("mType").value,iN=+$("mNote").value,negSpend=$("mSign").value==="neg";
+  var iD=+$("mDate").value,iF=+$("mFirm").value,iA=+$("mAmt").value,iT=+$("mType").value,iN=+$("mNote").value,iS=+$("mStatus").value,iI=+$("mId").value,negSpend=$("mSign").value==="neg",fixed=$("fixedFirm").value.trim();
+  if(iF<0&&!fixed){$("msg").textContent="Enter a firm name, or choose the firm column.";return}
   if($("mMode").value==="replace")S.entries=[];
-  var seen={},skipped=0,added=0;
+  var seen={},skipped=0,added=0,failed=0;
   function key(e){return[e.date,e.firm.toLowerCase(),e.type,e.amt,e.note].join("|")}
   S.entries.forEach(function(e){seen[key(e)]=1});
   rows.forEach(function(x){
-    var n=num(x[iA]),firm=(x[iF]||"").trim();
+    if(iS>=0&&/fail|cancel|declin|void|error|reject|pending|expired/i.test(x[iS]||"")){failed++;return}
+    var n=num(x[iA]),firm=iF>=0?(x[iF]||"").trim():"";
+    if(!firm)firm=fixed;
     if(n===null||n===0||!firm){skipped++;return}
+    var note=iN>=0?(x[iN]||"").trim():"";
+    if(iI>=0&&x[iI])note=(note?note+" ":"")+"(order "+String(x[iI]).trim()+")";
     var pay,type;
     if(iT>=0&&x[iT]){type=x[iT].trim();pay=/payout|withdraw|reward|profit|refund|credit/i.test(type)}
-    else{pay=negSpend?n>0:n<0;type="Spend"}
+    else{pay=negSpend?n>0:n<0;type=/reset/i.test(note)?"Reset":"Spend"}
     if(pay)type="Payout";
-    var e={firm:firm,type:type,amt:Math.abs(n),acct:"",date:dt(x[iD]),note:iN>=0?(x[iN]||"").trim():""};
+    var e={firm:firm,type:type,amt:Math.abs(n),acct:"",date:dt(x[iD]),note:note};
     if(seen[key(e)]){skipped++;return}
     seen[key(e)]=1;S.entries.push(e);added++});
   save();render();$("mapbox").hidden=true;
-  $("msg").textContent="Imported "+added+" entries"+(skipped?", skipped "+skipped+" duplicate or unreadable rows":"")+". Upload another file any time.";
+  $("msg").textContent="Imported "+added+" entries"+(failed?", ignored "+failed+" failed or cancelled orders":"")+(skipped?", skipped "+skipped+" duplicate or unreadable rows":"")+". Upload another file any time.";
 };
 var armed=false;
 $("clear").onclick=function(){
